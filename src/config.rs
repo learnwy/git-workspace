@@ -1,4 +1,4 @@
-use crate::providers::{GithubProvider, GitlabProvider, Provider};
+use crate::providers::{SelfGitlabProvider, GithubProvider, GitlabProvider, Provider};
 use crate::repository::Repository;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -76,6 +76,7 @@ impl Config {
 pub enum ProviderSource {
     Gitlab(GitlabProvider),
     Github(GithubProvider),
+    SelfGitlab(SelfGitlabProvider),
 }
 
 impl ProviderSource {
@@ -83,6 +84,7 @@ impl ProviderSource {
         match self {
             Self::Gitlab(config) => config,
             Self::Github(config) => config,
+            Self::SelfGitlab(config) => config,
         }
     }
 

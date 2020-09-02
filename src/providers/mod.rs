@@ -1,10 +1,12 @@
 mod github;
 mod gitlab;
+mod selfgitlab;
 
 use crate::repository::Repository;
 use anyhow::anyhow;
 pub use github::GithubProvider;
 pub use gitlab::GitlabProvider;
+pub use selfgitlab::SelfGitlabProvider;
 use serde_json::Value;
 use std::fmt;
 
