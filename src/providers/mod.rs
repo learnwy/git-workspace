@@ -1,9 +1,11 @@
 mod github;
 mod gitlab;
+mod selfgitlab;
 
 use crate::repository::Repository;
 pub use github::GithubProvider;
 pub use gitlab::GitlabProvider;
+pub use selfgitlab::SelfGitlabProvider;
 use std::fmt;
 
 pub trait Provider: fmt::Display {

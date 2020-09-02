@@ -11,8 +11,8 @@ use std::process::{Command, Stdio};
 // Eq, Ord and friends are needed to order the list of repositories
 #[derive(Deserialize, Serialize, Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Repository {
-    path: String,
-    url: String,
+    pub path: String,
+    pub url: String,
     pub upstream: Option<String>,
     pub branch: Option<String>,
 }
@@ -115,11 +115,7 @@ impl Repository {
             .wait()
             .context("Error waiting for process to finish")?;
         if !exit_code.success() {
-            return Err(anyhow!(
-                "Git exited with code {}: {}",
-                exit_code.code().unwrap(),
-                last_line
-            ));
+            println!("Git exited with code {}: {}", exit_code.code().unwrap(), last_line);
         }
         Ok(())
     }
@@ -165,16 +161,17 @@ impl Repository {
 
         let child = command
             .arg("clone")
-            .arg("--recurse-submodules")
+            // .arg("--recurse-submodules")
             .arg("--progress")
             .arg(&self.url)
             .arg(root.join(&self.name()));
 
         self.run_with_progress(child, progress_bar)
-            .with_context(|| {
-                format!("Error cloning repo into {} from {}", self.name(), &self.url)
-            })?;
-
+            .unwrap_or_else(|_| ())
+            // .with_context(|| {
+            //     format!("Error cloning repo into {} from {}", self.name(), &self.url)
+            // })
+        ;
         Ok(())
     }
     pub fn name(&self) -> &String {

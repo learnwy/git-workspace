@@ -14,17 +14,18 @@ extern crate walkdir;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::iter::{Filter, Map};
+use std::ops::{Add, RangeInclusive, RangeTo};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use anyhow::{anyhow, Context};
 use atomic_counter::{AtomicCounter, RelaxedCounter};
 use indicatif::{MultiProgress, ParallelProgressIterator, ProgressBar, ProgressStyle};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use structopt::StructOpt;
 use walkdir::WalkDir;
-
-use anyhow::{anyhow, Context};
 
 use crate::config::{all_config_files, Config, ProviderSource};
 use crate::lockfile::Lockfile;
@@ -53,6 +54,16 @@ struct Args {
 enum Command {
     /// Update the workspace, removing and adding any repositories as needed.
     Update {
+        #[structopt(short = "t", long = "threads", default_value = "8")]
+        threads: usize,
+    },
+    /// Only Pull the workspace exists not cloned repos
+    OnlyPull {
+        #[structopt(short = "t", long = "threads", default_value = "8")]
+        threads: usize,
+    },
+    /// Only The certain group
+    UpdateWithRetry {
         #[structopt(short = "t", long = "threads", default_value = "8")]
         threads: usize,
     },
@@ -159,6 +170,11 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
             lock(&workspace_path)?;
             update(&workspace_path, threads)?
         }
+        Command::OnlyPull { threads } => update(&workspace_path, threads)?,
+        Command::UpdateWithRetry { threads } => {
+            lock_with_retry(&workspace_path)?;
+            update(&workspace_path, threads)?
+        }
         Command::Fetch { threads } => fetch(&workspace_path, threads)?,
         Command::Add { file, command } => add_provider_to_config(&workspace_path, command, &file)?,
         Command::Run {
@@ -203,12 +219,16 @@ fn update(workspace: &Path, threads: usize) -> anyhow::Result<()> {
     // Load our lockfile
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
     let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
-
     println!("Updating {} repositories", repositories.len());
 
-    map_repositories(&repositories, threads, |r, progress_bar| {
+    map_repositories(repositories
+                         // .drain(threads..repositories.len())
+                         .as_slice(), threads, |r, progress_bar| {
         // Only clone repositories that don't exist
-        if !r.exists(workspace) {
+        if !r.exists(workspace) && !(
+            r.path.contains("cangku") ||
+            r.path.contains("video_search")
+        ) {
             r.clone(workspace, progress_bar)?;
             // Maybe this should always be run, but whatever. It's fine for now.
             r.set_upstream(workspace)?;
@@ -222,7 +242,106 @@ fn update(workspace: &Path, threads: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn pull_all_repositories(workspace: &Path, threads: usize) -> anyhow::Result<()> {
+fn fetch_with_retry_util_success(
+    source: &ProviderSource,
+    loop_count: usize,
+) -> anyhow::Result<Vec<Repository>> {
+    let result = source.fetch_repositories();
+    if result.is_err() {
+        eprintln!(
+            "error loop with {}, loop-count: {}",
+            match source {
+                ProviderSource::Github(g) => g.name.clone(),
+                ProviderSource::Gitlab(g) => g.name.clone(),
+                ProviderSource::SelfGitlab(g) => g.name.clone(),
+            },
+            loop_count
+        );
+        // sleep
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        fetch_with_retry_util_success(source, loop_count + 1)
+    } else {
+        result
+    }
+}
+
+/// Update our workspace. This clones any new repositories and archives old ones.
+fn lock_with_retry(workspace: &PathBuf) -> anyhow::Result<()> {
+    // Find all config files
+    let config_files = all_config_files(workspace).context("Error loading config files")?;
+    // Read the configuration sources
+    let config = Config::new(config_files);
+    let sources = config
+        .read()
+        .with_context(|| "Error reading config files")?;
+
+    let total_bar = ProgressBar::new(sources.len() as u64);
+    total_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {percent}% [{wide_bar:.cyan/blue}] {pos}/{len} (ETA: {eta_precise})")
+            .progress_chars("#>-"),
+    );
+
+    println!("Fetching repositories...");
+    // For each source, in sequence, fetch the repositories
+    let results = sources
+        .par_iter()
+        .progress_with(total_bar)
+        .map(|source| fetch_with_retry_util_success(source, 1))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    println!("Fetching repositories complete");
+    // TODO: merge old lock files
+    let mut all_repositories: Vec<Repository> = results.into_iter().flatten().collect();
+    // let all_repositories: Vec<Repository> = all_repository_results.iter().collect::<anyhow::Result<Vec<Repository>>>()?;
+    // We may have duplicated repositories here. Make sure they are unique based on the full path.
+    all_repositories.sort();
+    all_repositories.dedup();
+    // Write the lockfile out
+    let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
+    lockfile.write(&all_repositories)?;
+    println!("Write lock file back ok");
+    Ok(())
+}
+
+mod tests {
+    use std::path::PathBuf;
+
+    use anyhow::Context;
+
+    use crate::lockfile::Lockfile;
+    use crate::repository::Repository;
+
+    #[test]
+    fn tf() {
+        // Load our lockfile
+        let lockfile =
+            Lockfile::new(PathBuf::from("/Volumes/8T/git-workspace").join("workspace-lock.toml"));
+        let repositories = lockfile
+            .read()
+            .with_context(|| "Error reading lockfile")
+            .unwrap();
+        println!("before filter Updating {} repositories", repositories.len());
+        let repositories: Vec<Repository> = repositories
+            .iter()
+            .filter(|r| {
+                let p = r.name().clone().add("/");
+                !(p.contains("/linux/") || p.contains("/rust/") || p.contains("cangku"))
+                    && !r.exists(&PathBuf::from("/Volumes/8T/git-workspace").clone())
+            })
+            .map(|r| Repository {
+                path: r.path.clone(),
+                url: r.url.clone(),
+                upstream: r.upstream.clone(),
+                branch: r.branch.clone(),
+            })
+            .collect();
+
+        println!("after filter Updating {} repositories", repositories.len());
+        // println!("after filter Updating {:?} repositories", repositories);
+    }
+}
+
+fn pull_all_repositories(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
     let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
 
@@ -453,13 +572,14 @@ where
 
 /// Find all projects that have been archived or deleted on our providers
 fn archive_repositories(workspace: &Path, repositories: Vec<Repository>) -> anyhow::Result<()> {
+    return Ok(());
     // The logic here is as follows:
     // 1. Iterate through all directories. If it's a "safe" directory (one that contains a project
     //    in our lockfile), we skip it entirely.
     // 2. If the directory is not, and contains a `.git` directory, then we mark it for archival and
     //    skip processing.
     // This assumes nobody deletes a .git directory in one of their projects.
-
+    // return Ok(());
     // Windows doesn't like .archive.
     let archive_directory = if cfg!(windows) {
         workspace.join("_archive")
