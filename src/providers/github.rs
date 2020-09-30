@@ -23,7 +23,7 @@ fn default_env_var() -> String {
 }
 
 const fn default_forks() -> bool {
-    false
+    true
 }
 
 #[derive(Deserialize, Serialize, Debug, Eq, Ord, PartialEq, PartialOrd, StructOpt)]
