@@ -1,4 +1,4 @@
-use crate::providers::{SelfGitlabProvider, GithubProvider, GitlabProvider, Provider};
+use crate::providers::{GithubProvider, GitlabProvider, Provider, SelfGitlabProvider};
 use crate::repository::Repository;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};

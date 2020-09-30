@@ -91,7 +91,7 @@ impl Provider for SelfGitlabProvider {
                     "Error: {} environment variable is not defined",
                     self.env_var
                 ))
-                    .red()
+                .red()
             );
             println!("Create a personal access token here:");
             println!("{}/profile/personal_access_tokens", self.url);
@@ -127,9 +127,17 @@ impl Provider for SelfGitlabProvider {
         }
         let mut page = 1;
         loop {
-            let res = ureq::get(format!("{}/api/v4/groups/{}/projects?page={}", self.url, name.clone(), page).as_str())
-                .set("PRIVATE-TOKEN", format!("{}", gitlab_token).as_str())
-                .send_form(&[]);
+            let res = ureq::get(
+                format!(
+                    "{}/api/v4/groups/{}/projects?page={}",
+                    self.url,
+                    name.clone(),
+                    page
+                )
+                .as_str(),
+            )
+            .set("PRIVATE-TOKEN", format!("{}", gitlab_token).as_str())
+            .send_form(&[]);
             let json = resp_to_json(res)?;
             let data: Vec<SelfGitLab> = serde_json::from_value(json).unwrap();
             if data.is_empty() {
@@ -141,7 +149,11 @@ impl Provider for SelfGitlabProvider {
                     if !d.archived {
                         temp_repositories.push(ProjectNode {
                             archived: d.archived,
-                            ssh_url: if self.use_ssh { d.ssh_url_to_repo.unwrap() } else { d.http_url_to_repo.unwrap() },
+                            ssh_url: if self.use_ssh {
+                                d.ssh_url_to_repo.unwrap()
+                            } else {
+                                d.http_url_to_repo.unwrap()
+                            },
                             root_ref: d.default_branch,
                             full_path: d.path_with_namespace.unwrap(),
                         })
@@ -154,8 +166,7 @@ impl Provider for SelfGitlabProvider {
             page += 1;
         }
 
-        temp_repositories
-            .truncate(self.max);
+        temp_repositories.truncate(self.max);
         repositories.extend(
             temp_repositories
                 .into_iter()
