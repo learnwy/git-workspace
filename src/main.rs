@@ -18,13 +18,12 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
+use anyhow::{anyhow, Context};
 use atomic_counter::{AtomicCounter, RelaxedCounter};
 use indicatif::{MultiProgress, ParallelProgressIterator, ProgressBar, ProgressStyle};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use structopt::StructOpt;
 use walkdir::WalkDir;
-
-use anyhow::{anyhow, Context};
 
 use crate::config::{all_config_files, Config, ProviderSource};
 use crate::lockfile::Lockfile;
@@ -53,6 +52,11 @@ struct Args {
 enum Command {
     /// Update the workspace, removing and adding any repositories as needed.
     Update {
+        #[structopt(short = "t", long = "threads", default_value = "8")]
+        threads: usize,
+    },
+    /// Only Update the workspace, removing and adding any repositories as needed.
+    OnlyUpdate {
         #[structopt(short = "t", long = "threads", default_value = "8")]
         threads: usize,
     },
@@ -159,6 +163,7 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
             lock(&workspace_path)?;
             update(&workspace_path, threads)?
         }
+        Command::OnlyUpdate { threads } => update(&workspace_path, threads)?,
         Command::Fetch { threads } => fetch(&workspace_path, threads)?,
         Command::Add { file, command } => add_provider_to_config(&workspace_path, command, &file)?,
         Command::Run {
