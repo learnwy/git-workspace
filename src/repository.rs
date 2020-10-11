@@ -11,8 +11,8 @@ use std::process::{Command, Stdio};
 // Eq, Ord and friends are needed to order the list of repositories
 #[derive(Deserialize, Serialize, Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Repository {
-    path: String,
-    url: String,
+    pub path: String,
+    pub url: String,
     pub upstream: Option<String>,
     pub branch: Option<String>,
 }
