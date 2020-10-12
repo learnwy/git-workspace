@@ -15,6 +15,7 @@ extern crate walkdir;
 use std::any::Any;
 use std::collections::HashSet;
 use std::iter::{Filter, Map};
+use std::ops::Add;
 use std::path::PathBuf;
 use std::slice::Iter;
 use std::sync::Arc;
@@ -31,7 +32,6 @@ use walkdir::WalkDir;
 use crate::config::{all_config_files, Config, ProviderSource};
 use crate::lockfile::Lockfile;
 use crate::repository::Repository;
-use std::ops::Add;
 
 mod config;
 mod lockfile;
@@ -215,8 +215,9 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     println!("Updating {} repositories", repositories.len());
     let repositories: Vec<Repository> = repositories.iter().filter(|r| {
         let p = r.name().clone().add("/");
-        (p.contains("/linux/") ||
+        !(p.contains("/linux/") ||
             p.contains("/rust/"))
+            && !r.exists(workspace)
     }).map(|r| {
         Repository {
             path: r.path.clone(),
@@ -245,12 +246,13 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
 }
 
 mod tests {
+    use std::ops::Add;
     use std::path::PathBuf;
+
+    use anyhow::Context;
 
     use crate::lockfile::Lockfile;
     use crate::repository::Repository;
-    use anyhow::Context;
-    use std::ops::Add;
 
     #[test]
     fn tf() {
@@ -262,6 +264,7 @@ mod tests {
             let p = r.name().clone().add("/");
             !(p.contains("/linux/") ||
                 p.contains("/rust/"))
+                && !r.exists(&PathBuf::from("/Volumes/8T/git-workspace").clone())
         }).map(|r| {
             Repository {
                 path: r.path.clone(),
@@ -272,7 +275,7 @@ mod tests {
         }).collect();
 
         println!("after filter Updating {} repositories", repositories.len());
-        println!("after filter Updating {:?} repositories", repositories);
+        // println!("after filter Updating {:?} repositories", repositories);
     }
 }
 
