@@ -225,7 +225,7 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
                     p.contains("/structural-benchmarks-PDDL/")
             )
 
-                && !r.exists(workspace)
+                // && !r.exists(workspace)
         })
         .map(|r| {
             Repository {

@@ -165,7 +165,7 @@ impl Repository {
 
         let child = command
             .arg("clone")
-            .arg("--recurse-submodules")
+            // .arg("--recurse-submodules")
             .arg("--progress")
             .arg(&self.url)
             .arg(root.join(&self.name()));
