@@ -211,24 +211,30 @@ fn add_provider_to_config(
 fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     // Load our lockfile
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
-    let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
+    let mut repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
+    repositories.reverse();
     println!("Updating {} repositories", repositories.len());
-    // let repositories: Vec<Repository> = repositories
-    //     .iter()
-    //     .filter(|r| {
-    //         let p = r.name().clone().add("/");
-    //         !(p.contains("/linux/") ||
-    //             p.contains("/rust/"))
-    //             && !r.exists(workspace)
-    //     })
-    //     .map(|r| {
-    //         Repository {
-    //             path: r.path.clone(),
-    //             url: r.url.clone(),
-    //             upstream: r.upstream.clone(),
-    //             branch: r.branch.clone(),
-    //         }
-    //     }).collect();
+    let repositories: Vec<Repository> = repositories
+        .iter()
+        .filter(|r| {
+            let p = r.name().clone().add("/");
+
+            !(
+                p.contains("/linux/") ||
+                    p.contains("/rust/") ||
+                    p.contains("/structural-benchmarks-PDDL/")
+            )
+
+                && !r.exists(workspace)
+        })
+        .map(|r| {
+            Repository {
+                path: r.path.clone(),
+                url: r.url.clone(),
+                upstream: r.upstream.clone(),
+                branch: r.branch.clone(),
+            }
+        }).collect();
 
     println!("Updating {} repositories", repositories.len());
 
