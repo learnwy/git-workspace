@@ -142,7 +142,7 @@ impl Provider for GithubProvider {
                     .unwrap()
                     .iter()
                     .map(|r| r.as_ref().unwrap())
-                    .filter(|r| !r.is_archived)
+                    // .filter(|r| !r.is_archived)
                     .map(|repo| self.parse_repo(&self.path, &repo)),
             );
 

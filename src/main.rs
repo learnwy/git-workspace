@@ -213,19 +213,22 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
     let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     println!("Updating {} repositories", repositories.len());
-    let repositories: Vec<Repository> = repositories.iter().filter(|r| {
-        let p = r.name().clone().add("/");
-        !(p.contains("/linux/") ||
-            p.contains("/rust/"))
-            && !r.exists(workspace)
-    }).map(|r| {
-        Repository {
-            path: r.path.clone(),
-            url: r.url.clone(),
-            upstream: r.upstream.clone(),
-            branch: r.branch.clone(),
-        }
-    }).collect();
+    // let repositories: Vec<Repository> = repositories
+    //     .iter()
+    //     .filter(|r| {
+    //         let p = r.name().clone().add("/");
+    //         !(p.contains("/linux/") ||
+    //             p.contains("/rust/"))
+    //             && !r.exists(workspace)
+    //     })
+    //     .map(|r| {
+    //         Repository {
+    //             path: r.path.clone(),
+    //             url: r.url.clone(),
+    //             upstream: r.upstream.clone(),
+    //             branch: r.branch.clone(),
+    //         }
+    //     }).collect();
 
     println!("Updating {} repositories", repositories.len());
 
@@ -516,7 +519,7 @@ fn archive_repositories(workspace: &PathBuf, repositories: Vec<Repository>) -> a
     // 2. If the directory is not, and contains a `.git` directory, then we mark it for archival and
     //    skip processing.
     // This assumes nobody deletes a .git directory in one of their projects.
-
+    return Ok(());
     // Windows doesn't like .archive.
     let archive_directory = if cfg!(windows) {
         workspace.join("_archive")
