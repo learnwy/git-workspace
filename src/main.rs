@@ -15,7 +15,7 @@ extern crate walkdir;
 use std::any::Any;
 use std::collections::HashSet;
 use std::iter::{Filter, Map};
-use std::ops::Add;
+use std::ops::{Add, RangeInclusive, RangeTo};
 use std::path::PathBuf;
 use std::slice::Iter;
 use std::sync::Arc;
@@ -214,7 +214,7 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     let mut repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     repositories.reverse();
     println!("Updating {} repositories", repositories.len());
-    let repositories: Vec<Repository> = repositories
+    let mut repositories: Vec<Repository> = repositories
         .iter()
         .filter(|r| {
             let p = r.name().clone().add("/");
@@ -238,7 +238,9 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
 
     println!("Updating {} repositories", repositories.len());
 
-    map_repositories(&repositories, threads, |r, progress_bar| {
+    map_repositories(repositories
+                         // .drain(threads..repositories.len())
+                         .as_slice(), threads, |r, progress_bar| {
         // Only clone repositories that don't exist
         if !r.exists(workspace) {
             r.clone(&workspace, &progress_bar)?;
