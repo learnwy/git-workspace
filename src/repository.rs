@@ -163,7 +163,7 @@ impl Repository {
     pub fn clone(&self, root: &PathBuf, progress_bar: &ProgressBar) -> anyhow::Result<()> {
         let mut command = Command::new("git");
 
-        let child = command
+        let mut child = command
             .arg("clone")
             // .arg("--recurse-submodules")
             .arg("--progress")
@@ -174,7 +174,6 @@ impl Repository {
             .with_context(|| {
                 format!("Error cloning repo into {} from {}", self.name(), &self.url)
             })?;
-
         Ok(())
     }
     pub fn name(&self) -> &String {

@@ -116,7 +116,8 @@ impl Provider for GithubProvider {
 
         // include_forks needs to be None instead of true, as the graphql parameter has three
         // states: false - no forks, true - only forks, none - all repositories.
-        let include_forks: Option<bool> = if self.skip_forks { Some(false) } else { None };
+        // let include_forks: Option<bool> = if self.skip_forks { Some(false) } else { None };
+        let include_forks: Option<bool> = Some(false);
 
         loop {
             let q = Repositories::build_query(repositories::Variables {

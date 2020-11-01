@@ -42,10 +42,10 @@ mod repository;
 #[structopt(name = "git-workspace", author, about)]
 struct Args {
     #[structopt(
-    short = "w",
-    long = "workspace",
-    parse(from_os_str),
-    env = "GIT_WORKSPACE"
+        short = "w",
+        long = "workspace",
+        parse(from_os_str),
+        env = "GIT_WORKSPACE"
     )]
     workspace: PathBuf,
     #[structopt(subcommand)]
@@ -125,14 +125,14 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
     // On Windows this isn't supported.
     let expanded_workspace_path;
     #[cfg(not(unix))]
-        {
-            expanded_workspace_path = PathBuf::from(args.workspace);
-        }
+    {
+        expanded_workspace_path = PathBuf::from(args.workspace);
+    }
     #[cfg(unix)]
-        {
-            expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
-                .with_context(|| "Error expanding git workspace path")?;
-        }
+    {
+        expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
+            .with_context(|| "Error expanding git workspace path")?;
+    }
 
     // If our workspace path doesn't exist then we need to create it, and call `canonicalize`
     // on the result. This fails if the path does not exist.
@@ -152,13 +152,13 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
 
         &expanded_workspace_path
     })
-        .canonicalize()
-        .with_context(|| {
-            format!(
-                "Error canonicalizing workspace path {}",
-                &expanded_workspace_path.display()
-            )
-        })?;
+    .canonicalize()
+    .with_context(|| {
+        format!(
+            "Error canonicalizing workspace path {}",
+            &expanded_workspace_path.display()
+        )
+    })?;
 
     // Run our sub command. Pretty self-explanatory.
     match args.command {
@@ -214,41 +214,54 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     let mut repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     repositories.reverse();
     println!("Updating {} repositories", repositories.len());
-    let mut repositories: Vec<Repository> = repositories
-        .iter()
-        .filter(|r| {
-            let p = r.name().clone().add("/");
-
-            !(
-                p.contains("/linux/") ||
-                    p.contains("/rust/") ||
-                    p.contains("/structural-benchmarks-PDDL/")
-            )
-
-                // && !r.exists(workspace)
-        })
-        .map(|r| {
-            Repository {
-                path: r.path.clone(),
-                url: r.url.clone(),
-                upstream: r.upstream.clone(),
-                branch: r.branch.clone(),
-            }
-        }).collect();
+    let mut repositories: Vec<Repository> = repositories;
+    // .iter()
+    // .filter(|r| {
+    //     let p = r.name().clone().add("/");
+    //     !vec![
+    //         "/linux/",
+    //         "/rust/",
+    //         "/structural-benchmarks-PDDL/",
+    //         "/night-sight/",
+    //         "/JetBrains/",
+    //         "MiCode",
+    //         "XLearning",
+    //         "alibaba",
+    //         "apache",
+    //         "llvm",
+    //     ]
+    //     .iter()
+    //     .any(|ep| p.contains(ep))
+    //     // true
+    //     // && !r.exists(workspace)
+    // })
+    // .map(|r| Repository {
+    //     path: r.path.clone(),
+    //     url: r.url.clone(),
+    //     upstream: r.upstream.clone(),
+    //     branch: r.branch.clone(),
+    // })
+    // .collect();
+    repositories.reverse();
 
     println!("Updating {} repositories", repositories.len());
 
-    map_repositories(repositories
-                         // .drain(threads..repositories.len())
-                         .as_slice(), threads, |r, progress_bar| {
-        // Only clone repositories that don't exist
-        if !r.exists(workspace) {
-            r.clone(&workspace, &progress_bar)?;
-            // Maybe this should always be run, but whatever. It's fine for now.
-            r.set_upstream(&workspace)?;
-        }
-        Ok(())
-    })?;
+    map_repositories(
+        repositories
+            // .drain(threads..repositories.len())
+            .as_slice(),
+        threads,
+        |r, progress_bar| {
+            // Only clone repositories that don't exist
+            if !r.exists(workspace) {
+                // excute 2
+                r.clone(&workspace, &progress_bar)?;
+                // Maybe this should always be run, but whatever. It's fine for now.
+                r.set_upstream(&workspace)?;
+            }
+            Ok(())
+        },
+    )?;
     // Archive any repositories that have been deleted from the lockfile.
     archive_repositories(workspace, repositories)
         .with_context(|| "Error archiving repositories")?;
@@ -268,22 +281,27 @@ mod tests {
     #[test]
     fn tf() {
         // Load our lockfile
-        let lockfile = Lockfile::new(PathBuf::from("/Volumes/8T/git-workspace").join("workspace-lock.toml"));
-        let repositories = lockfile.read().with_context(|| "Error reading lockfile").unwrap();
+        let lockfile =
+            Lockfile::new(PathBuf::from("/Volumes/8T/git-workspace").join("workspace-lock.toml"));
+        let repositories = lockfile
+            .read()
+            .with_context(|| "Error reading lockfile")
+            .unwrap();
         println!("before filter Updating {} repositories", repositories.len());
-        let repositories: Vec<Repository> = repositories.iter().filter(|r| {
-            let p = r.name().clone().add("/");
-            !(p.contains("/linux/") ||
-                p.contains("/rust/"))
-                && !r.exists(&PathBuf::from("/Volumes/8T/git-workspace").clone())
-        }).map(|r| {
-            Repository {
+        let repositories: Vec<Repository> = repositories
+            .iter()
+            .filter(|r| {
+                let p = r.name().clone().add("/");
+                !(p.contains("/linux/") || p.contains("/rust/"))
+                    && !r.exists(&PathBuf::from("/Volumes/8T/git-workspace").clone())
+            })
+            .map(|r| Repository {
                 path: r.path.clone(),
                 url: r.url.clone(),
                 upstream: r.upstream.clone(),
                 branch: r.branch.clone(),
-            }
-        }).collect();
+            })
+            .collect();
 
         println!("after filter Updating {} repositories", repositories.len());
         // println!("after filter Updating {:?} repositories", repositories);
@@ -428,8 +446,8 @@ fn list(workspace: &PathBuf, full: bool) -> anyhow::Result<()> {
 /// This method takes care of displaying progress bars and displaying
 /// any errors that may arise.
 fn map_repositories<F>(repositories: &[Repository], threads: usize, f: F) -> anyhow::Result<()>
-    where
-        F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
+where
+    F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
 {
     // Create our progress bar. We use Arc here as we need to share the MutliProgress across
     // more than 1 thread (described below)
