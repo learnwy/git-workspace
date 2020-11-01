@@ -214,34 +214,48 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     let mut repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     repositories.reverse();
     println!("Updating {} repositories", repositories.len());
-    let mut repositories: Vec<Repository> = repositories;
-    // .iter()
-    // .filter(|r| {
-    //     let p = r.name().clone().add("/");
-    //     !vec![
-    //         "/linux/",
-    //         "/rust/",
-    //         "/structural-benchmarks-PDDL/",
-    //         "/night-sight/",
-    //         "/JetBrains/",
-    //         "MiCode",
-    //         "XLearning",
-    //         "alibaba",
-    //         "apache",
-    //         "llvm",
-    //     ]
-    //     .iter()
-    //     .any(|ep| p.contains(ep))
-    //     // true
-    //     // && !r.exists(workspace)
-    // })
-    // .map(|r| Repository {
-    //     path: r.path.clone(),
-    //     url: r.url.clone(),
-    //     upstream: r.upstream.clone(),
-    //     branch: r.branch.clone(),
-    // })
-    // .collect();
+    let mut repositories: Vec<Repository> = repositories
+        .iter()
+        .filter(|r| {
+            let p = r.name().clone().add("/");
+            // vec![
+            //     "/shenyisyn/",
+            //     "/fnproject/",
+            //     "/tc39/",
+            //     "/spring",
+            //     "/joshlong/",
+            //     "/npm/",
+            //     "/pnpm/",
+            //     "/sveltejs/",
+            //     "/serde-rs/",
+            //     "/UnityTechnologies/",
+            // ]
+            // .iter()
+            // .any(|ep| p.contains(ep))
+            // !vec![
+            //     "/linux/",
+            //     "/rust/",
+            //     "/structural-benchmarks-PDDL/",
+            //     "/night-sight/",
+            //     "/JetBrains/",
+            //     "MiCode",
+            //     "XLearning",
+            //     "alibaba",
+            //     "apache",
+            //     "llvm",
+            // ]
+            // .iter()
+            // .any(|ep| p.contains(ep))
+            true
+            // && !r.exists(workspace)
+        })
+        .map(|r| Repository {
+            path: r.path.clone(),
+            url: r.url.clone(),
+            upstream: r.upstream.clone(),
+            branch: r.branch.clone(),
+        })
+        .collect();
     repositories.reverse();
 
     println!("Updating {} repositories", repositories.len());
