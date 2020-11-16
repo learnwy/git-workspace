@@ -559,7 +559,7 @@ fn archive_repositories(workspace: &PathBuf, repositories: Vec<Repository>) -> a
     // 2. If the directory is not, and contains a `.git` directory, then we mark it for archival and
     //    skip processing.
     // This assumes nobody deletes a .git directory in one of their projects.
-    return Ok(());
+    // return Ok(());
     // Windows doesn't like .archive.
     let archive_directory = if cfg!(windows) {
         workspace.join("_archive")
