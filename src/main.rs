@@ -553,6 +553,7 @@ where
 
 /// Find all projects that have been archived or deleted on our providers
 fn archive_repositories(workspace: &PathBuf, repositories: Vec<Repository>) -> anyhow::Result<()> {
+    return Ok(());
     // The logic here is as follows:
     // 1. Iterate through all directories. If it's a "safe" directory (one that contains a project
     //    in our lockfile), we skip it entirely.
