@@ -42,10 +42,10 @@ mod repository;
 #[structopt(name = "git-workspace", author, about)]
 struct Args {
     #[structopt(
-        short = "w",
-        long = "workspace",
-        parse(from_os_str),
-        env = "GIT_WORKSPACE"
+    short = "w",
+    long = "workspace",
+    parse(from_os_str),
+    env = "GIT_WORKSPACE"
     )]
     workspace: PathBuf,
     #[structopt(subcommand)]
@@ -59,8 +59,13 @@ enum Command {
         #[structopt(short = "t", long = "threads", default_value = "8")]
         threads: usize,
     },
-    /// Only Update the workspace, removing and adding any repositories as needed.
-    OnlyUpdate {
+    /// Only Pull the workspace exists not cloned repos
+    OnlyPull {
+        #[structopt(short = "t", long = "threads", default_value = "8")]
+        threads: usize,
+    },
+    /// Only The certain group
+    SplitUpdate {
         #[structopt(short = "t", long = "threads", default_value = "8")]
         threads: usize,
     },
@@ -125,14 +130,14 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
     // On Windows this isn't supported.
     let expanded_workspace_path;
     #[cfg(not(unix))]
-    {
-        expanded_workspace_path = PathBuf::from(args.workspace);
-    }
+        {
+            expanded_workspace_path = PathBuf::from(args.workspace);
+        }
     #[cfg(unix)]
-    {
-        expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
-            .with_context(|| "Error expanding git workspace path")?;
-    }
+        {
+            expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
+                .with_context(|| "Error expanding git workspace path")?;
+        }
 
     // If our workspace path doesn't exist then we need to create it, and call `canonicalize`
     // on the result. This fails if the path does not exist.
@@ -152,13 +157,13 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
 
         &expanded_workspace_path
     })
-    .canonicalize()
-    .with_context(|| {
-        format!(
-            "Error canonicalizing workspace path {}",
-            &expanded_workspace_path.display()
-        )
-    })?;
+        .canonicalize()
+        .with_context(|| {
+            format!(
+                "Error canonicalizing workspace path {}",
+                &expanded_workspace_path.display()
+            )
+        })?;
 
     // Run our sub command. Pretty self-explanatory.
     match args.command {
@@ -167,7 +172,11 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
             lock(&workspace_path)?;
             update(&workspace_path, threads)?
         }
-        Command::OnlyUpdate { threads } => update(&workspace_path, threads)?,
+        Command::OnlyPull { threads } => update(&workspace_path, threads)?,
+        Command::SplitUpdate { threads } => {
+            split_update(&workspace_path, threads);
+            update(&workspace_path, threads)?
+        }
         Command::Fetch { threads } => fetch(&workspace_path, threads)?,
         Command::Add { file, command } => add_provider_to_config(&workspace_path, command, &file)?,
         Command::Run {
@@ -280,6 +289,51 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     archive_repositories(workspace, repositories)
         .with_context(|| "Error archiving repositories")?;
 
+    Ok(())
+}
+
+/// Update our workspace. This clones any new repositories and archives old ones.
+fn split_update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
+    // Find all config files
+    let config_files = all_config_files(workspace).context("Error loading config files")?;
+    // Read the configuration sources
+    let config = Config::new(config_files);
+    let mut sources = config
+        .read()
+        .with_context(|| "Error reading config files")?;
+
+    let total_bar = ProgressBar::new(sources.len() as u64);
+    total_bar.set_style(
+        ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {percent}% [{wide_bar:.cyan/blue}] {pos}/{len} (ETA: {eta_precise})")
+            .progress_chars("#>-"),
+    );
+
+    println!("Fetching repositories...");
+    let mut loopFetchUtilSuccess = move |source: ProviderSource| {
+        if source
+            .fetch_repositories().is_err() {
+            loopFetchUtilSuccess(source)
+        }
+    };
+    // For each source, in sequence, fetch the repositories
+    let results = sources
+        .par_iter()
+        .progress_with(total_bar)
+        .map(|source| {
+            loopFetchUtilSuccess(source)
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    // TODO: merge old lock files
+    let mut all_repositories: Vec<Repository> = results.into_iter().flatten().collect();
+    all_repositories.append(old_repositories.as_mut());
+    // let all_repositories: Vec<Repository> = all_repository_results.iter().collect::<anyhow::Result<Vec<Repository>>>()?;
+    // We may have duplicated repositories here. Make sure they are unique based on the full path.
+    all_repositories.sort();
+    all_repositories.dedup();
+    // Write the lockfile out
+    let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
+    lockfile.write(&all_repositories)?;
     Ok(())
 }
 
@@ -460,8 +514,8 @@ fn list(workspace: &PathBuf, full: bool) -> anyhow::Result<()> {
 /// This method takes care of displaying progress bars and displaying
 /// any errors that may arise.
 fn map_repositories<F>(repositories: &[Repository], threads: usize, f: F) -> anyhow::Result<()>
-where
-    F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
+    where
+        F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
 {
     // Create our progress bar. We use Arc here as we need to share the MutliProgress across
     // more than 1 thread (described below)
