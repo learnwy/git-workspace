@@ -163,7 +163,7 @@ impl Repository {
     pub fn clone(&self, root: &PathBuf, progress_bar: &ProgressBar) -> anyhow::Result<()> {
         let mut command = Command::new("git");
 
-        let mut child = command
+        let child = command
             .arg("clone")
             // .arg("--recurse-submodules")
             .arg("--progress")

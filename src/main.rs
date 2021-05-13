@@ -12,19 +12,14 @@ extern crate structopt;
 extern crate ureq;
 extern crate walkdir;
 
-use std::any::Any;
 use std::collections::HashSet;
-use std::iter::{Filter, Map};
-use std::ops::{Add, RangeInclusive, RangeTo};
 use std::path::PathBuf;
-use std::slice::Iter;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
 use anyhow::{anyhow, Context};
 use atomic_counter::{AtomicCounter, RelaxedCounter};
-use git2::ErrorClass::Thread;
 use indicatif::{MultiProgress, ParallelProgressIterator, ProgressBar, ProgressStyle};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use structopt::StructOpt;
@@ -43,10 +38,10 @@ mod repository;
 #[structopt(name = "git-workspace", author, about)]
 struct Args {
     #[structopt(
-    short = "w",
-    long = "workspace",
-    parse(from_os_str),
-    env = "GIT_WORKSPACE"
+        short = "w",
+        long = "workspace",
+        parse(from_os_str),
+        env = "GIT_WORKSPACE"
     )]
     workspace: PathBuf,
     #[structopt(subcommand)]
@@ -131,14 +126,14 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
     // On Windows this isn't supported.
     let expanded_workspace_path;
     #[cfg(not(unix))]
-        {
-            expanded_workspace_path = PathBuf::from(args.workspace);
-        }
+    {
+        expanded_workspace_path = PathBuf::from(args.workspace);
+    }
     #[cfg(unix)]
-        {
-            expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
-                .with_context(|| "Error expanding git workspace path")?;
-        }
+    {
+        expanded_workspace_path = expanduser::expanduser(args.workspace.to_string_lossy())
+            .with_context(|| "Error expanding git workspace path")?;
+    }
 
     // If our workspace path doesn't exist then we need to create it, and call `canonicalize`
     // on the result. This fails if the path does not exist.
@@ -158,13 +153,13 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
 
         &expanded_workspace_path
     })
-        .canonicalize()
-        .with_context(|| {
-            format!(
-                "Error canonicalizing workspace path {}",
-                &expanded_workspace_path.display()
-            )
-        })?;
+    .canonicalize()
+    .with_context(|| {
+        format!(
+            "Error canonicalizing workspace path {}",
+            &expanded_workspace_path.display()
+        )
+    })?;
 
     // Run our sub command. Pretty self-explanatory.
     match args.command {
@@ -175,7 +170,7 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
         }
         Command::OnlyPull { threads } => update(&workspace_path, threads)?,
         Command::UpdateWithRetry { threads } => {
-            lock_with_retry(&workspace_path);
+            lock_with_retry(&workspace_path)?;
             update(&workspace_path, threads)?
         }
         Command::Fetch { threads } => fetch(&workspace_path, threads)?,
@@ -221,53 +216,7 @@ fn add_provider_to_config(
 fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     // Load our lockfile
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
-    let mut repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
-    repositories.reverse();
-    println!("Updating {} repositories", repositories.len());
-    let mut repositories: Vec<Repository> = repositories
-        .iter()
-        .filter(|r| {
-            let p = r.name().clone().add("/");
-            // vec![
-            //     "/shenyisyn/",
-            //     "/fnproject/",
-            //     "/tc39/",
-            //     "/spring",
-            //     "/joshlong/",
-            //     "/npm/",
-            //     "/pnpm/",
-            //     "/sveltejs/",
-            //     "/serde-rs/",
-            //     "/UnityTechnologies/",
-            // ]
-            // .iter()
-            // .any(|ep| p.contains(ep))
-            // !vec![
-            //     "/linux/",
-            //     "/rust/",
-            //     "/structural-benchmarks-PDDL/",
-            //     "/night-sight/",
-            //     "/JetBrains/",
-            //     "MiCode",
-            //     "XLearning",
-            //     "alibaba",
-            //     "apache",
-            //     "llvm",
-            // ]
-            // .iter()
-            // .any(|ep| p.contains(ep))
-            true
-            // && !r.exists(workspace)
-        })
-        .map(|r| Repository {
-            path: r.path.clone(),
-            url: r.url.clone(),
-            upstream: r.upstream.clone(),
-            branch: r.branch.clone(),
-        })
-        .collect();
-    repositories.reverse();
-
+    let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     println!("Updating {} repositories", repositories.len());
 
     map_repositories(
@@ -293,17 +242,24 @@ fn update(workspace: &PathBuf, threads: usize) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn fetchWithRetryUtilSuccess(source: &ProviderSource, loopCount: usize) -> anyhow::Result<Vec<Repository>> {
+fn fetch_with_retry_util_success(
+    source: &ProviderSource,
+    loop_count: usize,
+) -> anyhow::Result<Vec<Repository>> {
     let result = source.fetch_repositories();
     if result.is_err() {
-        eprintln!("error loop with {}, loop-count: {}", match source {
-            ProviderSource::Github(g) => g.name.clone(),
-            ProviderSource::Gitlab(g) => g.name.clone(),
-            ProviderSource::SelfGitlab(g) => g.name.clone(),
-        }, loopCount);
+        eprintln!(
+            "error loop with {}, loop-count: {}",
+            match source {
+                ProviderSource::Github(g) => g.name.clone(),
+                ProviderSource::Gitlab(g) => g.name.clone(),
+                ProviderSource::SelfGitlab(g) => g.name.clone(),
+            },
+            loop_count
+        );
         // sleep
         std::thread::sleep(std::time::Duration::from_secs(60));
-        fetchWithRetryUtilSuccess(source, loopCount + 1)
+        fetch_with_retry_util_success(source, loop_count + 1)
     } else {
         result
     }
@@ -315,7 +271,7 @@ fn lock_with_retry(workspace: &PathBuf) -> anyhow::Result<()> {
     let config_files = all_config_files(workspace).context("Error loading config files")?;
     // Read the configuration sources
     let config = Config::new(config_files);
-    let mut sources = config
+    let sources = config
         .read()
         .with_context(|| "Error reading config files")?;
 
@@ -331,9 +287,7 @@ fn lock_with_retry(workspace: &PathBuf) -> anyhow::Result<()> {
     let results = sources
         .par_iter()
         .progress_with(total_bar)
-        .map(|source| {
-            fetchWithRetryUtilSuccess(source, 1)
-        })
+        .map(|source| fetch_with_retry_util_success(source, 1))
         .collect::<anyhow::Result<Vec<_>>>()?;
     println!("Fetching repositories complete");
     // TODO: merge old lock files
@@ -350,7 +304,6 @@ fn lock_with_retry(workspace: &PathBuf) -> anyhow::Result<()> {
 }
 
 mod tests {
-    use std::ops::Add;
     use std::path::PathBuf;
 
     use anyhow::Context;
@@ -526,8 +479,8 @@ fn list(workspace: &PathBuf, full: bool) -> anyhow::Result<()> {
 /// This method takes care of displaying progress bars and displaying
 /// any errors that may arise.
 fn map_repositories<F>(repositories: &[Repository], threads: usize, f: F) -> anyhow::Result<()>
-    where
-        F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
+where
+    F: Fn(&Repository, &ProgressBar) -> anyhow::Result<()> + std::marker::Sync,
 {
     // Create our progress bar. We use Arc here as we need to share the MutliProgress across
     // more than 1 thread (described below)
