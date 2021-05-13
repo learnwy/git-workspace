@@ -1,8 +1,7 @@
 use crate::providers::{resp_to_json, Provider};
 use crate::repository::Repository;
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use console::style;
-use graphql_client::{GraphQLQuery, Response};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt;
@@ -18,12 +17,6 @@ struct ProjectNode {
     full_path: String,
     ssh_url: String,
     root_ref: Option<String>,
-}
-
-static DEFAULT_GITLAB_URL: &str = "https://gitlab.com";
-
-fn public_gitlab_url() -> String {
-    DEFAULT_GITLAB_URL.to_string()
 }
 
 fn default_env_var() -> String {
