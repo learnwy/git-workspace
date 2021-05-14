@@ -7,14 +7,15 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt;
 use structopt::StructOpt;
+
 // See https://github.com/graphql-rust/graphql-client/blob/master/graphql_client/tests/custom_scalars.rs#L6
 type GitSSHRemote = String;
 
 #[derive(GraphQLQuery)]
 #[graphql(
-    schema_path = "src/providers/graphql/github/schema.graphql",
-    query_path = "src/providers/graphql/github/projects.graphql",
-    response_derives = "Debug"
+schema_path = "src/providers/graphql/github/schema.graphql",
+query_path = "src/providers/graphql/github/projects.graphql",
+response_derives = "Debug"
 )]
 pub struct Repositories;
 
@@ -89,7 +90,7 @@ impl Provider for GithubProvider {
                     "Error: {} environment variable is not defined",
                     self.env_var
                 ))
-                .red()
+                    .red()
             );
             println!("Create a personal access token here:");
             println!("https://github.com/settings/tokens");
@@ -112,7 +113,7 @@ impl Provider for GithubProvider {
             .with_context(|| "Missing GITHUB_TOKEN environment variable")?;
         let mut repositories = vec![];
 
-        let mut after = None;
+        let mut after: Option<String> = None;
 
         // include_forks needs to be None instead of true, as the graphql parameter has three
         // states: false - no forks, true - only forks, none - all repositories.
@@ -120,21 +121,27 @@ impl Provider for GithubProvider {
         let include_forks: Option<bool> = Some(false);
 
         loop {
+            let after_query = after.as_ref().map(|s| s.clone());
             let q = Repositories::build_query(repositories::Variables {
                 login: self.name.to_lowercase(),
                 include_forks,
-                after,
+                after: after_query,
             });
             let res = ureq::post("https://api.github.com/graphql")
                 .set("Authorization", format!("Bearer {}", github_token).as_str())
                 .send_json(json!(&q));
             let response_data: Response<repositories::ResponseData> =
                 serde_json::from_value(res.into_json()?)?;
-            let response_repositories = response_data
-                .data
-                .unwrap_or_else(|| panic!("Invalid response from GitHub for user {}", self.name))
-                .repository_owner
-                .unwrap_or_else(|| panic!("Invalid response from GitHub for user {}", self.name))
+            let response_data = response_data
+                .data;
+            if response_data.is_none() {
+                continue;
+            }
+            let response_repository_owner = response_data.unwrap().repository_owner;
+            if response_repository_owner.is_none() {
+                continue;
+            }
+            let response_repositories = response_repository_owner.unwrap()
                 .repositories;
 
             repositories.extend(
