@@ -115,11 +115,7 @@ impl Repository {
             .wait()
             .context("Error waiting for process to finish")?;
         if !exit_code.success() {
-            return Err(anyhow!(
-                "Git exited with code {}: {}",
-                exit_code.code().unwrap(),
-                last_line
-            ));
+            println!("Git exited with code {}: {}", exit_code.code().unwrap(), last_line);
         }
         Ok(())
     }
@@ -173,7 +169,7 @@ impl Repository {
         self.run_with_progress(child, progress_bar)
             .with_context(|| {
                 format!("Error cloning repo into {} from {}", self.name(), &self.url)
-            })?;
+            });
         Ok(())
     }
     pub fn name(&self) -> &String {
