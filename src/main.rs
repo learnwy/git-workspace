@@ -13,9 +13,9 @@ extern crate ureq;
 extern crate walkdir;
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::iter::{Filter, Map};
 use std::ops::{Add, RangeInclusive, RangeTo};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -221,20 +221,23 @@ fn update(workspace: &Path, threads: usize) -> anyhow::Result<()> {
     let repositories = lockfile.read().with_context(|| "Error reading lockfile")?;
     println!("Updating {} repositories", repositories.len());
 
-    map_repositories(repositories
-                         // .drain(threads..repositories.len())
-                         .as_slice(), threads, |r, progress_bar| {
-        // Only clone repositories that don't exist
-        if !r.exists(workspace) && !(
-            r.path.contains("cangku") ||
-            r.path.contains("video_search")
-        ) {
-            r.clone(workspace, progress_bar)?;
-            // Maybe this should always be run, but whatever. It's fine for now.
-            r.set_upstream(workspace)?;
-        }
-        Ok(())
-    })?;
+    map_repositories(
+        repositories
+            // .drain(threads..repositories.len())
+            .as_slice(),
+        threads,
+        |r, progress_bar| {
+            // Only clone repositories that don't exist
+            if !r.exists(workspace)
+                && !(r.path.contains("cangku") || r.path.contains("video_search"))
+            {
+                r.clone(workspace, progress_bar)?;
+                // Maybe this should always be run, but whatever. It's fine for now.
+                r.set_upstream(workspace)?;
+            }
+            Ok(())
+        },
+    )?;
     // Archive any repositories that have been deleted from the lockfile.
     archive_repositories(workspace, repositories)
         .with_context(|| "Error archiving repositories")?;
@@ -247,6 +250,10 @@ fn fetch_with_retry_util_success(
     loop_count: usize,
 ) -> anyhow::Result<Vec<Repository>> {
     let result = source.fetch_repositories();
+    if let ProviderSource::Github(s1) = source {
+        eprintln!("fetch: {}", s1.clone());
+    }
+
     if result.is_err() {
         eprintln!(
             "error loop with {}, loop-count: {}",
@@ -258,7 +265,7 @@ fn fetch_with_retry_util_success(
             loop_count
         );
         // sleep
-        std::thread::sleep(std::time::Duration::from_secs(60));
+        std::thread::sleep(std::time::Duration::from_secs(30));
         fetch_with_retry_util_success(source, loop_count + 1)
     } else {
         result
