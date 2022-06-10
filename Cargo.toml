@@ -27,7 +27,7 @@ console = { version = "0.15.0", features = ["ansi-parsing"], default_features = 
 atomic-counter = "1.0.1"
 ureq = { version = "2.4.0", features = ["json"] }
 serde_json = "1.0.59"
-globset = "0.4.6"
+globset = "0.4.9"
 git2 = "0.13.12"
 
 [target."cfg(unix)".dependencies]
