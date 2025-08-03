@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use log::{debug, info, warn};
 
 #[derive(Deserialize, Serialize, Debug)]
 struct ConfigContents {
@@ -21,50 +22,85 @@ impl Config {
         Config { files }
     }
 
-    // Find all config files in workspace
+    // Find workspace.toml config file in workspace directory only
     fn find_config_files(workspace: &Path) -> anyhow::Result<Vec<PathBuf>> {
-        let matcher = globset::GlobBuilder::new("workspace*.toml")
-            .literal_separator(true)
-            .build()?
-            .compile_matcher();
+        debug!("Searching for workspace.toml configuration file in: {}", workspace.display());
+        
+        let workspace_toml = workspace.join("workspace.toml");
+        let mut config_files = Vec::new();
+        
+        if workspace_toml.exists() {
+            info!("Found workspace config file: {}", workspace_toml.display());
+            config_files.push(workspace_toml);
+        } else {
+            warn!("workspace.toml not found in: {}", workspace.display());
+        }
+        
+        // Log all .toml files for debugging purposes
         let entries = fs::read_dir(workspace)
             .with_context(|| format!("Cannot list directory {}", workspace.display()))?;
-        let mut config_files: Vec<PathBuf> = entries
+        let all_toml_files: Vec<PathBuf> = entries
             .filter_map(Result::ok)
             .map(|e| e.path())
             .filter(|p| {
-                p.file_name()
-                    .map(|n| n != "workspace-lock.toml" && matcher.is_match(n))
-                    .unwrap_or(false)
+                if let Some(name) = p.file_name() {
+                    name.to_string_lossy().ends_with(".toml")
+                } else {
+                    false
+                }
             })
             .collect();
-        config_files.sort();
+        
+        debug!("All .toml files found in workspace: {:?}", all_toml_files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>());
+        
+        info!("Total workspace config files to load: {}", config_files.len());
+        for file in &config_files {
+            info!("  - {}", file.display());
+        }
 
         Ok(config_files)
     }
 
     pub fn from_workspace(workspace: &Path) -> anyhow::Result<Self> {
+        debug!("Loading configuration from workspace: {}", workspace.display());
         let config_files =
             Self::find_config_files(workspace).context("Error loading config files")?;
         if config_files.is_empty() {
+            warn!("No configuration files found in workspace: {}", workspace.display());
             anyhow::bail!("No configuration files found: Are you in the right workspace?")
         }
+        info!("Successfully loaded {} configuration files", config_files.len());
         Ok(Self::new(config_files))
     }
 
     pub fn read(&self) -> anyhow::Result<Vec<ProviderSource>> {
         let mut all_providers = vec![];
+        
+        info!("Reading configuration from {} files", self.files.len());
 
         for path in &self.files {
             if !path.exists() {
+                warn!("Configuration file does not exist: {}", path.display());
                 continue;
             }
+            
+            debug!("Reading configuration file: {}", path.display());
             let file_contents = fs::read_to_string(path)
                 .with_context(|| format!("Cannot read file {}", path.display()))?;
+            
+            debug!("Parsing TOML content from: {}", path.display());
             let contents: ConfigContents = toml::from_str(file_contents.as_str())
                 .with_context(|| format!("Error parsing TOML in file {}", path.display()))?;
+            
+            info!("Loaded {} providers from {}", contents.providers.len(), path.display());
+            for (i, provider) in contents.providers.iter().enumerate() {
+                info!("  Provider {}: {}", i + 1, provider);
+            }
+            
             all_providers.extend(contents.providers);
         }
+        
+        info!("Total providers loaded: {}", all_providers.len());
         Ok(all_providers)
     }
     pub fn write(&self, providers: Vec<ProviderSource>, config_path: &Path) -> anyhow::Result<()> {

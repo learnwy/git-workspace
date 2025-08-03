@@ -1,4 +1,4 @@
-use clap::{CommandFactory, Parser, ValueHint};
+use clap::{CommandFactory, Parser};
 use git_workspace::commands::{
     add_provider_to_config, archive, completion, execute_cmd, fetch, list, lock,
     pull_all_repositories, update,
@@ -6,20 +6,28 @@ use git_workspace::commands::{
 use git_workspace::config::ProviderSource;
 use git_workspace::utils::{ensure_workspace_dir_exists, expand_workspace_path};
 use std::path::PathBuf;
+use log::{debug, info};
 
 #[derive(clap::Parser)]
 #[command(name = "git-workspace", author, about, version)]
 struct Args {
     #[arg(short = 'w', long = "workspace", env = "GIT_WORKSPACE")]
     workspace: PathBuf,
+    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, help = "Increase logging verbosity (-v for info, -vv for debug)")]
+    verbose: u8,
     #[command(subcommand)]
     command: Command,
 }
 
-#[derive(clap::Parser)]
+#[derive(clap::Parser, Debug)]
 enum Command {
     /// Update the workspace, removing and adding any repositories as needed.
     Update {
+        #[arg(short = 't', long = "threads", default_value = "8")]
+        threads: usize,
+    },
+    /// Update the workspace without updating the lockfile (same as update but skips lock)
+    OnlyUpdate {
         #[arg(short = 't', long = "threads", default_value = "8")]
         threads: usize,
     },
@@ -78,18 +86,41 @@ enum Command {
 fn main() -> anyhow::Result<()> {
     // Parse our arguments to Args using clap.
     let args = Args::parse();
+    
+    // Initialize logging based on verbosity level
+    let log_level = match args.verbose {
+        0 => "warn",
+        1 => "info", 
+        2 => "debug",
+        _ => "trace",
+    };
+    
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(log_level)
+    ).init();
+    
+    debug!("Starting git-workspace with log level: {}", log_level);
+    debug!("Workspace path: {:?}", args.workspace);
+    
     handle_main(args)
 }
 
 fn handle_main(args: Args) -> anyhow::Result<()> {
     let workspace_path = expand_workspace_path(&args.workspace)?;
     let workspace_path = ensure_workspace_dir_exists(&workspace_path)?;
+    
+    info!("Using workspace directory: {}", workspace_path.display());
+    debug!("Command: {:?}", args.command);
 
     // Run our sub command. Pretty self-explanatory.
     match args.command {
         Command::List { full } => list(&workspace_path, full)?,
         Command::Update { threads } => {
             lock(&workspace_path)?;
+            update(&workspace_path, threads)?
+        }
+        Command::OnlyUpdate { threads } => {
+            // Skip lock() call, only run update()
             update(&workspace_path, threads)?
         }
         Command::Lock {} => {

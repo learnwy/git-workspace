@@ -155,6 +155,7 @@ impl Provider for GithubProvider {
     }
 
     fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>> {
+        log::info!("Fetching repositories for GitHub provider: {}", self.name);
         let github_token = env::var(&self.env_var)
             .with_context(|| format!("Missing {} environment variable", self.env_var))?;
 
@@ -175,6 +176,7 @@ impl Provider for GithubProvider {
         // include_forks needs to be None instead of true, as the graphql parameter has three
         // states: false - no forks, true - only forks, none - all repositories.
         let include_forks: Option<bool> = if self.skip_forks { Some(false) } else { None };
+        log::debug!("Fork filtering: skip_forks={}, include_forks={:?}", self.skip_forks, include_forks);
 
         let agent = ureq::AgentBuilder::new()
             .https_only(true)
@@ -226,17 +228,51 @@ impl Provider for GithubProvider {
                 .with_context(|| format!("Invalid response from GitHub: {}", body))?
                 .repositories;
 
-            repositories.extend(
-                response_repositories
-                    .nodes
-                    .unwrap()
-                    .iter()
-                    .map(|r| r.as_ref().unwrap())
-                    .filter(|r| !r.is_archived)
-                    .filter(|r| include_regex_set.is_match(&r.name_with_owner))
-                    .filter(|r| !exclude_regex_set.is_match(&r.name_with_owner))
-                    .map(|repo| self.parse_repo(&self.path, repo)),
-            );
+            let nodes = response_repositories.nodes.unwrap();
+            log::debug!("Received {} repositories from GitHub API for provider '{}'", nodes.len(), self.name);
+            
+            let filtered_repos: Vec<_> = nodes
+                .iter()
+                .map(|r| r.as_ref().unwrap())
+                .inspect(|r| log::debug!("Processing repo: {} (archived: {}, owner: {})", 
+                    r.name_with_owner, r.is_archived, 
+                    r.name_with_owner.split('/').next().unwrap_or("unknown")))
+                .filter(|r| {
+                    let not_archived = !r.is_archived;
+                    if !not_archived {
+                        log::debug!("Filtering out archived repo: {}", r.name_with_owner);
+                    }
+                    not_archived
+                })
+                .filter(|r| {
+                    // Ensure the repository belongs to the specified organization/user
+                    let owner = r.name_with_owner.split('/').next().unwrap_or("");
+                    let belongs_to_org = owner.eq_ignore_ascii_case(&self.name);
+                    if !belongs_to_org {
+                        log::warn!("Repository {} does not belong to organization '{}', skipping", 
+                            r.name_with_owner, self.name);
+                    }
+                    belongs_to_org
+                })
+                .filter(|r| {
+                    let matches_include = include_regex_set.is_match(&r.name_with_owner);
+                    if !matches_include {
+                        log::debug!("Repository {} does not match include patterns, skipping", r.name_with_owner);
+                    }
+                    matches_include
+                })
+                .filter(|r| {
+                    let not_excluded = !exclude_regex_set.is_match(&r.name_with_owner);
+                    if !not_excluded {
+                        log::debug!("Repository {} matches exclude patterns, skipping", r.name_with_owner);
+                    }
+                    not_excluded
+                })
+                .map(|repo| self.parse_repo(&self.path, repo))
+                .collect();
+            
+            log::info!("Added {} repositories from provider '{}'", filtered_repos.len(), self.name);
+            repositories.extend(filtered_repos);
 
             if !response_repositories.page_info.has_next_page {
                 break;
