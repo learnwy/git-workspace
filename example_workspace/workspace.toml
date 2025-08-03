@@ -1,7 +1,13 @@
 [[provider]]
-provider = "gitlab"
-name = "tom6"
-url = "https://gitlab.com"
-path = "gitlab"
-env_var = "GITLAB_TOKEN"
+provider = "github"
+name = "torvalds"
+path = "torvalds"
+env_var = "GITHUB_TOKEN"
+exclude = []
+
+[[provider]]
+provider = "github"
+name = "typst"
+path = "typst"
+env_var = "GITHUB_TOKEN"
 exclude = []

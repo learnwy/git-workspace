@@ -1,1 +1,182 @@
-repo = []
+[[repo]]
+path = "torvalds/torvalds/1590A"
+url = "git@github.com:torvalds/1590A.git"
+branch = "main"
+
+[[repo]]
+path = "torvalds/torvalds/libdc-for-dirk"
+url = "git@github.com:torvalds/libdc-for-dirk.git"
+upstream = "git@github.com:subsurface/libdc.git"
+branch = "Subsurface-branch"
+
+[[repo]]
+path = "torvalds/torvalds/libgit2"
+url = "git@github.com:torvalds/libgit2.git"
+upstream = "git@github.com:libgit2/libgit2.git"
+branch = "main"
+
+[[repo]]
+path = "torvalds/torvalds/linux"
+url = "git@github.com:torvalds/linux.git"
+branch = "master"
+
+[[repo]]
+path = "torvalds/torvalds/pesconvert"
+url = "git@github.com:torvalds/pesconvert.git"
+branch = "master"
+
+[[repo]]
+path = "torvalds/torvalds/subsurface-for-dirk"
+url = "git@github.com:torvalds/subsurface-for-dirk.git"
+upstream = "git@github.com:subsurface/subsurface.git"
+branch = "master"
+
+[[repo]]
+path = "torvalds/torvalds/test-tlb"
+url = "git@github.com:torvalds/test-tlb.git"
+branch = "master"
+
+[[repo]]
+path = "torvalds/torvalds/uemacs"
+url = "git@github.com:torvalds/uemacs.git"
+branch = "master"
+
+[[repo]]
+path = "typst/typst/biblatex"
+url = "git@github.com:typst/biblatex.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/citationberg"
+url = "git@github.com:typst/citationberg.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/codex"
+url = "git@github.com:typst/codex.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/comemo"
+url = "git@github.com:typst/comemo.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/ecow"
+url = "git@github.com:typst/ecow.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/hayagriva"
+url = "git@github.com:typst/hayagriva.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/hypher"
+url = "git@github.com:typst/hypher.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/iai"
+url = "git@github.com:typst/iai.git"
+upstream = "git@github.com:reknih/iai.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/icu4x"
+url = "git@github.com:typst/icu4x.git"
+upstream = "git@github.com:unicode-org/icu4x.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/oxipng"
+url = "git@github.com:typst/oxipng.git"
+upstream = "git@github.com:oxipng/oxipng.git"
+branch = "master"
+
+[[repo]]
+path = "typst/typst/package-check"
+url = "git@github.com:typst/package-check.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/packages"
+url = "git@github.com:typst/packages.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/parking_lot"
+url = "git@github.com:typst/parking_lot.git"
+upstream = "git@github.com:Amanieu/parking_lot.git"
+branch = "master"
+
+[[repo]]
+path = "typst/typst/pdf-writer"
+url = "git@github.com:typst/pdf-writer.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/pixglyph"
+url = "git@github.com:typst/pixglyph.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/rayon"
+url = "git@github.com:typst/rayon.git"
+upstream = "git@github.com:rayon-rs/rayon.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/subsetter"
+url = "git@github.com:typst/subsetter.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/svg2pdf"
+url = "git@github.com:typst/svg2pdf.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/templates"
+url = "git@github.com:typst/templates.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/typst"
+url = "git@github.com:typst/typst.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/typst-assets"
+url = "git@github.com:typst/typst-assets.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/typst-dev-assets"
+url = "git@github.com:typst/typst-dev-assets.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/typst-snap"
+url = "git@github.com:typst/typst-snap.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/unicode-math-class"
+url = "git@github.com:typst/unicode-math-class.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/unscanny"
+url = "git@github.com:typst/unscanny.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/webapp-issues"
+url = "git@github.com:typst/webapp-issues.git"
+branch = "main"
+
+[[repo]]
+path = "typst/typst/xmp-writer"
+url = "git@github.com:typst/xmp-writer.git"
+branch = "main"
