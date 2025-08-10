@@ -113,7 +113,7 @@ impl Provider for GiteaProvider {
         true
     }
 
-    fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>> {
+    fn fetch_repositories(&self, limit: usize) -> anyhow::Result<Vec<Repository>> {
         let gitea_token = env::var(&self.env_var)
             .with_context(|| format!("Missing {} environment variable", self.env_var))?;
 
@@ -130,8 +130,8 @@ impl Provider for GiteaProvider {
 
         loop {
             let url = format!(
-                "{}/api/v1/users/{}/repos?page={}&limit=50",
-                self.url, self.name, page
+                "{}/api/v1/users/{}/repos?page={}&limit={}",
+                self.url, self.name, page, limit
             );
 
             let response = agent

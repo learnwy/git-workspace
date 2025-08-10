@@ -23,6 +23,22 @@ type URI = String;
 )]
 pub struct Repositories;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "src/providers/graphql/github/schema.graphql",
+    query_path = "src/providers/graphql/github/projects_by_stars.graphql",
+    response_derives = "Debug"
+)]
+pub struct RepositoriesByStars;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "src/providers/graphql/github/schema.graphql",
+    query_path = "src/providers/graphql/github/projects_by_updated.graphql",
+    response_derives = "Debug"
+)]
+pub struct RepositoriesByUpdated;
+
 fn default_env_var() -> String {
     String::from("GITHUB_TOKEN")
 }
@@ -111,6 +127,188 @@ impl GithubProvider {
             upstream,
         )
     }
+
+    fn fetch_repositories_by_stars(&self, limit: usize) -> anyhow::Result<Vec<repositories_by_stars::RepositoriesByStarsRepositoryOwnerRepositoriesNodes>> {
+        log::info!("Fetching repositories sorted by stars for GitHub provider: {}", self.name);
+        let github_token = env::var(&self.env_var)
+            .with_context(|| format!("Environment variable {} is not set", &self.env_var))?;
+
+        let auth_header = if github_token.starts_with("ghp_") || github_token.starts_with("github_pat_") {
+            format!("token {}", github_token)
+        } else {
+            format!("Bearer {}", github_token)
+        };
+
+        let include_forks = if self.skip_forks {
+            Some(false)
+        } else {
+            None
+        };
+
+        let agent = ureq::AgentBuilder::new()
+            .user_agent(APP_USER_AGENT)
+            .build();
+
+        let mut all_repositories = Vec::new();
+        let mut after = None;
+        
+        // Fetch repositories with pagination
+        loop {
+            let q = RepositoriesByStars::build_query(repositories_by_stars::Variables {
+                login: self.name.clone(),
+                include_forks,
+                after,
+                first: std::cmp::min(100, limit) as i64,
+            });
+            
+            let res = agent
+                .post(&self.url)
+                .set("Authorization", &auth_header)
+                .send_json(json!(&q));
+
+            let res = match res {
+                Ok(response) => response,
+                Err(ureq::Error::Status(status, response)) => match response.into_string() {
+                    Ok(resp) => {
+                        bail!("Got status code {status}. Body: {resp}")
+                    }
+                    Err(e) => {
+                        bail!("Got status code {status}. Error reading body: {e}")
+                    }
+                },
+                Err(e) => return Err(e.into()),
+            };
+
+            let body = res.into_string()?;
+            let response_data: Response<repositories_by_stars::ResponseData> = serde_json::from_str(&body)?;
+
+            if let Some(errors) = response_data.errors {
+                let total_errors = errors.len();
+                let combined_errors: Vec<_> = errors.into_iter().map(|e| e.message).collect();
+                let combined_message = combined_errors.join("\n");
+                bail!(
+                    "Received {} errors. Errors:\n{}",
+                    total_errors,
+                    combined_message
+                );
+            }
+
+            let response_repositories = response_data
+                .data
+                .with_context(|| format!("Invalid response from GitHub: {}", body))?
+                .repository_owner
+                .with_context(|| format!("Invalid response from GitHub: {}", body))?
+                .repositories;
+
+            let nodes = response_repositories.nodes.unwrap();
+            log::debug!("Received {} repositories from GitHub API for provider '{}' (sorted by stars)", 
+                nodes.len(), self.name);
+            
+            for node in nodes {
+                if let Some(repo) = node {
+                    all_repositories.push(repo);
+                }
+            }
+
+            if !response_repositories.page_info.has_next_page || all_repositories.len() >= limit {
+                break;
+            }
+            after = response_repositories.page_info.end_cursor;
+        }
+        
+        Ok(all_repositories)
+    }
+
+    fn fetch_repositories_by_updated(&self, limit: usize) -> anyhow::Result<Vec<repositories_by_updated::RepositoriesByUpdatedRepositoryOwnerRepositoriesNodes>> {
+        log::info!("Fetching repositories sorted by updated for GitHub provider: {}", self.name);
+        let github_token = env::var(&self.env_var)
+            .with_context(|| format!("Environment variable {} is not set", &self.env_var))?;
+
+        let auth_header = if github_token.starts_with("ghp_") || github_token.starts_with("github_pat_") {
+            format!("token {}", github_token)
+        } else {
+            format!("Bearer {}", github_token)
+        };
+
+        let include_forks = if self.skip_forks {
+            Some(false)
+        } else {
+            None
+        };
+
+        let agent = ureq::AgentBuilder::new()
+            .user_agent(APP_USER_AGENT)
+            .build();
+
+        let mut all_repositories = Vec::new();
+        let mut after = None;
+        
+        // Fetch repositories with pagination
+        loop {
+            let q = RepositoriesByUpdated::build_query(repositories_by_updated::Variables {
+                login: self.name.clone(),
+                include_forks,
+                after,
+                first: std::cmp::min(100, limit) as i64,
+            });
+            
+            let res = agent
+                .post(&self.url)
+                .set("Authorization", &auth_header)
+                .send_json(json!(&q));
+
+            let res = match res {
+                Ok(response) => response,
+                Err(ureq::Error::Status(status, response)) => match response.into_string() {
+                    Ok(resp) => {
+                        bail!("Got status code {status}. Body: {resp}")
+                    }
+                    Err(e) => {
+                        bail!("Got status code {status}. Error reading body: {e}")
+                    }
+                },
+                Err(e) => return Err(e.into()),
+            };
+
+            let body = res.into_string()?;
+            let response_data: Response<repositories_by_updated::ResponseData> = serde_json::from_str(&body)?;
+
+            if let Some(errors) = response_data.errors {
+                let total_errors = errors.len();
+                let combined_errors: Vec<_> = errors.into_iter().map(|e| e.message).collect();
+                let combined_message = combined_errors.join("\n");
+                bail!(
+                    "Received {} errors. Errors:\n{}",
+                    total_errors,
+                    combined_message
+                );
+            }
+
+            let response_repositories = response_data
+                .data
+                .with_context(|| format!("Invalid response from GitHub: {}", body))?
+                .repository_owner
+                .with_context(|| format!("Invalid response from GitHub: {}", body))?
+                .repositories;
+
+            let nodes = response_repositories.nodes.unwrap();
+            log::debug!("Received {} repositories from GitHub API for provider '{}' (sorted by updated)", 
+                nodes.len(), self.name);
+            
+            for node in nodes {
+                if let Some(repo) = node {
+                    all_repositories.push(repo);
+                }
+            }
+
+            if !response_repositories.page_info.has_next_page || all_repositories.len() >= limit {
+                break;
+            }
+            after = response_repositories.page_info.end_cursor;
+        }
+        
+        Ok(all_repositories)
+    }
 }
 
 impl Provider for GithubProvider {
@@ -154,132 +352,130 @@ impl Provider for GithubProvider {
         true
     }
 
-    fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>> {
-        log::info!("Fetching repositories for GitHub provider: {}", self.name);
-        let github_token = env::var(&self.env_var)
-            .with_context(|| format!("Missing {} environment variable", self.env_var))?;
-
-        let auth_header = match github_token.as_str() {
-            "none" => "none".to_string(),
-            token => {
-                format!("Bearer {}", token)
-            }
-        };
-
-        let mut repositories = vec![];
-
-        let mut after = None;
-
+    fn fetch_repositories(&self, limit: usize) -> anyhow::Result<Vec<Repository>> {
+        use std::collections::HashSet;
+        
+        log::info!("Fetching repositories for GitHub provider: {} with 1/4 stars + 3/4 updated distribution", self.name);
+        
         let include_regex_set = create_include_regex_set(&self.include)?;
         let exclude_regex_set = create_exclude_regex_set(&self.exclude)?;
-
-        // include_forks needs to be None instead of true, as the graphql parameter has three
-        // states: false - no forks, true - only forks, none - all repositories.
-        let include_forks: Option<bool> = if self.skip_forks { Some(false) } else { None };
-        log::debug!("Fork filtering: skip_forks={}, include_forks={:?}", self.skip_forks, include_forks);
-
-        let agent = ureq::AgentBuilder::new()
-            .https_only(true)
-            .user_agent(APP_USER_AGENT)
-            .build();
-
-        loop {
-            let q = Repositories::build_query(repositories::Variables {
-                login: self.name.to_lowercase(),
-                include_forks,
-                after,
-            });
-            let res = agent
-                .post(&self.url)
-                .set("Authorization", &auth_header)
-                .send_json(json!(&q));
-
-            let res = match res {
-                Ok(response) => response,
-                Err(ureq::Error::Status(status, response)) => match response.into_string() {
-                    Ok(resp) => {
-                        bail!("Got status code {status}. Body: {resp}")
-                    }
-                    Err(e) => {
-                        bail!("Got status code {status}. Error reading body: {e}")
-                    }
-                },
-                Err(e) => return Err(e.into()),
-            };
-
-            let body = res.into_string()?;
-            let response_data: Response<repositories::ResponseData> = serde_json::from_str(&body)?;
-
-            if let Some(errors) = response_data.errors {
-                let total_errors = errors.len();
-                let combined_errors: Vec<_> = errors.into_iter().map(|e| e.message).collect();
-                let combined_message = combined_errors.join("\n");
-                bail!(
-                    "Received {} errors. Errors:\n{}",
-                    total_errors,
-                    combined_message
-                );
+        
+        // Calculate limits for each type
+        let stars_limit = (limit as f64 * 0.25).ceil() as usize;
+        let updated_limit = (limit as f64 * 0.75).ceil() as usize;
+        
+        // Fetch repositories by stars
+        let starred_repos = self.fetch_repositories_by_stars(stars_limit)?;
+        
+        // Fetch repositories by updated
+        let updated_repos = self.fetch_repositories_by_updated(updated_limit)?;
+        
+        let mut final_repositories = Vec::new();
+        let mut seen_names = HashSet::new();
+        
+        // Helper function to check if repo should be included
+        let should_include_repo = |repo_name: &str, is_archived: bool| -> bool {
+            // Filter out archived repositories
+            if is_archived {
+                log::debug!("Filtering out archived repo: {}", repo_name);
+                return false;
             }
-
-            let response_repositories = response_data
-                .data
-                .with_context(|| format!("Invalid response from GitHub: {}", body))?
-                .repository_owner
-                .with_context(|| format!("Invalid response from GitHub: {}", body))?
-                .repositories;
-
-            let nodes = response_repositories.nodes.unwrap();
-            log::debug!("Received {} repositories from GitHub API for provider '{}'", nodes.len(), self.name);
             
-            let filtered_repos: Vec<_> = nodes
-                .iter()
-                .map(|r| r.as_ref().unwrap())
-                .inspect(|r| log::debug!("Processing repo: {} (archived: {}, owner: {})", 
-                    r.name_with_owner, r.is_archived, 
-                    r.name_with_owner.split('/').next().unwrap_or("unknown")))
-                .filter(|r| {
-                    let not_archived = !r.is_archived;
-                    if !not_archived {
-                        log::debug!("Filtering out archived repo: {}", r.name_with_owner);
-                    }
-                    not_archived
-                })
-                .filter(|r| {
-                    // Ensure the repository belongs to the specified organization/user
-                    let owner = r.name_with_owner.split('/').next().unwrap_or("");
-                    let belongs_to_org = owner.eq_ignore_ascii_case(&self.name);
-                    if !belongs_to_org {
-                        log::warn!("Repository {} does not belong to organization '{}', skipping", 
-                            r.name_with_owner, self.name);
-                    }
-                    belongs_to_org
-                })
-                .filter(|r| {
-                    let matches_include = include_regex_set.is_match(&r.name_with_owner);
-                    if !matches_include {
-                        log::debug!("Repository {} does not match include patterns, skipping", r.name_with_owner);
-                    }
-                    matches_include
-                })
-                .filter(|r| {
-                    let not_excluded = !exclude_regex_set.is_match(&r.name_with_owner);
-                    if !not_excluded {
-                        log::debug!("Repository {} matches exclude patterns, skipping", r.name_with_owner);
-                    }
-                    not_excluded
-                })
-                .map(|repo| self.parse_repo(&self.path, repo))
-                .collect();
+            // Ensure the repository belongs to the specified organization/user
+            let owner = repo_name.split('/').next().unwrap_or("");
+            if !owner.eq_ignore_ascii_case(&self.name) {
+                log::warn!("Repository {} does not belong to organization '{}', skipping", 
+                    repo_name, self.name);
+                return false;
+            }
             
-            log::info!("Added {} repositories from provider '{}'", filtered_repos.len(), self.name);
-            repositories.extend(filtered_repos);
-
-            if !response_repositories.page_info.has_next_page {
+            // Check include patterns
+            if !include_regex_set.is_match(repo_name) {
+                log::debug!("Repository {} does not match include patterns, skipping", repo_name);
+                return false;
+            }
+            
+            // Check exclude patterns
+            if exclude_regex_set.is_match(repo_name) {
+                log::debug!("Repository {} matches exclude patterns, skipping", repo_name);
+                return false;
+            }
+            
+            true
+        };
+        
+        // Add starred repositories (1/4 of limit)
+        for repo in starred_repos.iter().take(stars_limit) {
+            if should_include_repo(&repo.name_with_owner, repo.is_archived) {
+                if seen_names.insert(repo.name_with_owner.clone()) {
+                    final_repositories.push(Repository::new(
+                        format!("{}/{}", self.path, repo.name_with_owner.clone()),
+                        if self.auth_http {
+                            repo.url.clone()
+                        } else {
+                            format!("git@github.com:{}.git", repo.name_with_owner)
+                        },
+                        repo.default_branch_ref.as_ref().map(|branch| branch.name.clone()),
+                        None, // No upstream for starred repos from this query
+                    ));
+                }
+            }
+        }
+        
+        // Add updated repositories (3/4 of limit, excluding duplicates)
+        for repo in updated_repos.iter().take(updated_limit) {
+            if final_repositories.len() >= limit {
                 break;
             }
-            after = response_repositories.page_info.end_cursor;
+            if should_include_repo(&repo.name_with_owner, repo.is_archived) {
+                if seen_names.insert(repo.name_with_owner.clone()) {
+                    final_repositories.push(Repository::new(
+                        format!("{}/{}", self.path, repo.name_with_owner.clone()),
+                        if self.auth_http {
+                            repo.url.clone()
+                        } else {
+                            format!("git@github.com:{}.git", repo.name_with_owner)
+                        },
+                        repo.default_branch_ref.as_ref().map(|branch| branch.name.clone()),
+                        None, // No upstream for updated repos from this query
+                    ));
+                }
+            }
         }
-
-        Ok(repositories)
+        
+        // If we still need more repositories, loop through starred repos again
+        if final_repositories.len() < limit {
+            for repo in starred_repos.iter().skip(stars_limit) {
+                if final_repositories.len() >= limit {
+                    break;
+                }
+                if should_include_repo(&repo.name_with_owner, repo.is_archived) {
+                    if seen_names.insert(repo.name_with_owner.clone()) {
+                        final_repositories.push(Repository::new(
+                            format!("{}/{}", self.path, repo.name_with_owner.clone()),
+                            if self.auth_http {
+                                repo.url.clone()
+                            } else {
+                                format!("git@github.com:{}.git", repo.name_with_owner)
+                            },
+                            repo.default_branch_ref.as_ref().map(|branch| branch.name.clone()),
+                            None,
+                        ));
+                    }
+                }
+            }
+        }
+        
+        // Ensure we don't exceed the limit
+        final_repositories.truncate(limit);
+        log::info!("Added {} repositories from provider '{}' (1/4 stars: {}, 3/4 updated: {}, total: {})", 
+            final_repositories.len(), self.name, 
+            final_repositories.iter().take(stars_limit).count(),
+            final_repositories.iter().skip(stars_limit).count(),
+            final_repositories.len());
+        
+        Ok(final_repositories)
     }
+    
+
 }

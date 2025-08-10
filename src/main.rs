@@ -37,7 +37,17 @@ enum Command {
         threads: usize,
     },
     /// Fetch all repositories from configured providers and write the lockfile
-    Lock {},
+    Lock {
+        #[arg(short = 'l', long = "limit", default_value = "50")]
+        /// Maximum number of repositories to fetch per organization
+        limit: usize,
+        #[arg(long = "retry-delay", default_value = "60")]
+        /// Delay in seconds between retry attempts
+        retry_delay: u64,
+        #[arg(long = "retry-times", default_value = "1")]
+        /// Number of retry attempts for failed providers
+        retry_times: usize,
+    },
     /// Pull new commits on the primary branch for all repositories in the workspace
     SwitchAndPull {
         #[arg(short = 't', long = "threads", default_value = "8")]
@@ -116,15 +126,15 @@ fn handle_main(args: Args) -> anyhow::Result<()> {
     match args.command {
         Command::List { full } => list(&workspace_path, full)?,
         Command::Update { threads } => {
-            lock(&workspace_path)?;
+            lock(&workspace_path, 50, 60, 1)?; // Use default values for update command
             update(&workspace_path, threads)?
         }
         Command::OnlyUpdate { threads } => {
             // Skip lock() call, only run update()
             update(&workspace_path, threads)?
         }
-        Command::Lock {} => {
-            lock(&workspace_path)?;
+        Command::Lock { limit, retry_delay, retry_times } => {
+            lock(&workspace_path, limit, retry_delay, retry_times)?;
         }
         Command::Archive { force } => archive(&workspace_path, force)?,
         Command::Fetch { threads } => fetch(&workspace_path, threads)?,

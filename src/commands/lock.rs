@@ -9,7 +9,7 @@ use std::path::Path;
 use log::{debug, info, warn};
 
 /// Update our lockfile
-pub fn lock(workspace: &Path) -> anyhow::Result<()> {
+pub fn lock(workspace: &Path, limit: usize, retry_delay: u64, retry_times: usize) -> anyhow::Result<()> {
     info!("Starting lock operation for workspace: {}", workspace.display());
     let config = Config::from_workspace(workspace)?;
 
@@ -35,29 +35,56 @@ pub fn lock(workspace: &Path) -> anyhow::Result<()> {
     // For each source, in sequence, fetch the repositories
     let results = sources
         .par_iter()
-        .map(|source| {
-            info!("Fetching repositories from provider: {}", source);
-            let repositories = source
-                .fetch_repositories()
-                .with_context(|| format!("Error fetching repositories from {}", source));
-            match &repositories {
+        .map(|provider| {
+            info!("Fetching repositories from provider: {}", provider);
+            let mut repositories = vec![];
+            
+            // Try initial fetch
+            match provider.fetch_repositories(limit) {
                 Ok(repos) => {
-                    info!("Successfully fetched {} repositories from {}", repos.len(), source);
-                    debug!("Repositories from {}: {:?}", source, repos.iter().map(|r| r.name()).collect::<Vec<_>>());
+                    info!("Successfully fetched {} repositories from {}", repos.len(), provider);
+                    debug!("Repositories from {}: {:?}", provider, repos.iter().map(|r| r.name()).collect::<Vec<_>>());
                     // Log first few repositories for verification
                     for (i, repo) in repos.iter().take(3).enumerate() {
                         debug!("  Repository {}: {}", i + 1, repo.name());
                     }
+                    repositories.extend(repos);
+                    return repositories;
                 }
                 Err(e) => {
-                    warn!("Failed to fetch repositories from {}: {}", source, e);
+                    warn!("Initial fetch failed for {}: {}", provider, e);
                 }
             }
+            
+            // Retry logic
+            for attempt in 1..=retry_times {
+                warn!("Retrying fetch for {} (attempt {} of {})", provider, attempt, retry_times);
+                std::thread::sleep(std::time::Duration::from_secs(retry_delay));
+                
+                match provider.fetch_repositories(limit) {
+                    Ok(repos) => {
+                        info!("Successfully fetched {} repositories from {} on retry attempt {}", repos.len(), provider, attempt);
+                        debug!("Repositories from {}: {:?}", provider, repos.iter().map(|r| r.name()).collect::<Vec<_>>());
+                        // Log first few repositories for verification
+                        for (i, repo) in repos.iter().take(3).enumerate() {
+                            debug!("  Repository {}: {}", i + 1, repo.name());
+                        }
+                        repositories.extend(repos);
+                        return repositories;
+                    }
+                    Err(e) => {
+                        warn!("Retry attempt {} failed for {}: {}", attempt, provider, e);
+                    }
+                }
+            }
+            
+            // All attempts failed, skip this provider
+            warn!("Skipping provider {} after {} failed attempts", provider, retry_times + 1);
             repositories
         })
         .progress_with(total_bar)
-        .collect::<anyhow::Result<Vec<_>>>()?;
-    let mut all_repositories = vec![];
+        .collect::<Vec<_>>();
+    let mut all_repositories: Vec<Repository> = vec![];
     for (i, result) in results.into_iter().enumerate() {
         debug!("Adding {} repositories from provider {} to final list", result.len(), i + 1);
         // Log first few repositories from each provider

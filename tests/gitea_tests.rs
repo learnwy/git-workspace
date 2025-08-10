@@ -31,7 +31,7 @@ fn cleanup() {
 }
 
 fn update_command(workspace_path: &Path) {
-    lock(workspace_path).unwrap();
+    lock(workspace_path, 8, 60, 1).unwrap();
     update(workspace_path, 8).unwrap();
 }
 

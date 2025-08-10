@@ -14,7 +14,7 @@ pub static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CAR
 pub trait Provider: fmt::Display {
     /// Returns true if the provider should work, otherwise prints an error and return false
     fn correctly_configured(&self) -> bool;
-    fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>>;
+    fn fetch_repositories(&self, limit: usize) -> anyhow::Result<Vec<Repository>>;
 }
 
 pub fn create_exclude_regex_set(items: &Vec<String>) -> anyhow::Result<regex::RegexSet> {

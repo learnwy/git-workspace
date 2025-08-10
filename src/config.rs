@@ -134,8 +134,8 @@ impl ProviderSource {
         self.provider().correctly_configured()
     }
 
-    pub fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>> {
-        self.provider().fetch_repositories()
+    pub fn fetch_repositories(&self, limit: usize) -> anyhow::Result<Vec<Repository>> {
+        self.provider().fetch_repositories(limit)
     }
 }
 

@@ -151,7 +151,7 @@ impl Provider for GitlabProvider {
         }
         true
     }
-    fn fetch_repositories(&self) -> anyhow::Result<Vec<Repository>> {
+    fn fetch_repositories(&self, limit: usize) -> anyhow::Result<Vec<Repository>> {
         let gitlab_token = env::var(&self.env_var)
             .with_context(|| format!("Missing {} environment variable", self.env_var))?;
         let mut repositories = vec![];
@@ -170,6 +170,7 @@ impl Provider for GitlabProvider {
             let q = Repositories::build_query(repositories::Variables {
                 name: name.clone(),
                 after,
+                first: limit as i64,
             });
             let res = agent
                 .post(format!("{}/api/graphql", self.url).as_str())

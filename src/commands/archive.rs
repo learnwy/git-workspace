@@ -9,7 +9,7 @@ use super::get_all_repositories_to_archive;
 
 pub fn archive(workspace: &Path, force: bool) -> anyhow::Result<()> {
     // Archive any repositories that have been deleted from the lockfile.
-    lock(workspace)?;
+    lock(workspace, 50, 60, 1)?;
 
     let lockfile = Lockfile::new(workspace.join("workspace-lock.toml"));
     let repositories = lockfile.read().context("Error reading lockfile")?;

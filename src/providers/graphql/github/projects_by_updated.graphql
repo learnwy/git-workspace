@@ -1,0 +1,25 @@
+query RepositoriesByUpdated($login: String!, $include_forks: Boolean, $after: String, $first: Int!) {
+  repositoryOwner(login: $login) {
+    __typename
+    repositories(
+      first: $first
+      after: $after
+      isFork: $include_forks
+      orderBy: { field: UPDATED_AT, direction: DESC }
+    ) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        nameWithOwner
+        url
+        isArchived
+        isFork
+        defaultBranchRef {
+          name
+        }
+      }
+    }
+  }
+}

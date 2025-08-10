@@ -1,6 +1,6 @@
-query Repositories($name: ID!, $after: String) {
+query Repositories($name: ID!, $after: String, $first: Int!) {
     namespace(fullPath: $name) {
-        projects(includeSubgroups: true, after: $after) {
+        projects(includeSubgroups: true, after: $after, first: $first) {
             edges {
                 node {
                     archived,
@@ -19,7 +19,7 @@ query Repositories($name: ID!, $after: String) {
         }
     }
     group(fullPath: $name) {
-        projects(includeSubgroups: true, after: $after) {
+        projects(includeSubgroups: true, after: $after, first: $first) {
             edges {
                 node {
                     archived,
